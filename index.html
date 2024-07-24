@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Display Bandwidth Calculator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        label {
+            display: block;
+            margin-top: 10px;
+        }
+        input, select, button {
+            margin-top: 5px;
+        }
+        #result {
+            margin-top: 20px;
+            font-weight: bold;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #000;
+            padding: 8px;
+            text-align: center;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <h1>Display Bandwidth Calculator</h1>
+    <form id="bandwidthForm">
+        <label for="width">Resolution Width (pixels):</label>
+        <input type="number" id="width" name="width" required>
+        
+        <label for="height">Resolution Height (pixels):</label>
+        <input type="number" id="height" name="height" required>
+        
+        <label for="refreshRate">Refresh Rate (Hz):</label>
+        <input type="number" id="refreshRate" name="refreshRate" required>
+        
+        <label for="colorDepth">Color Depth (bits per pixel):</label>
+        <input type="number" id="colorDepth" name="colorDepth" required>
+
+        <label for="colorFormat">Color Format:</label>
+        <select id="colorFormat" name="colorFormat" required>
+            <option value="RGB">RGB</option>
+            <option value="YCbCr444">YCbCr 4:4:4</option>
+            <option value="YCbCr422">YCbCr 4:2:2</option>
+            <option value="YCbCr420">YCbCr 4:2:0</option>
+        </select>
+        
+        <label for="dpVersion">DisplayPort Version:</label>
+        <select id="dpVersion" name="dpVersion" required>
+            <option value="dp1.4">DP 1.4</option>
+            <option value="dp2.1">DP 2.1</option>
+        </select>
+        
+        <button type="button" onclick="calculateBandwidth()">Calculate Bandwidth</button>
+    </form>
+    
+    <div id="result"></div>
+    
+    <h2>DisplayPort Bandwidth</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>DP Version</th>
+                <th>Transmission Rate</th>
+                <th>Lanes</th>
+                <th>Max Payload Bandwidth (Gbps)</th>
+            </tr>
+        </thead>
+        <tbody id="bandwidthTable">
+        </tbody>
+    </table>
+    
+    <script>
+        function calculateBandwidth() {
+            // Get input values
+            const width = document.getElementById('width').value;
+            const height = document.getElementById('height').value;
+            const refreshRate = document.getElementById('refreshRate').value;
+            const colorDepth = document.getElementById('colorDepth').value;
+            const colorFormat = document.getElementById('colorFormat').value;
+            const dpVersion = document.getElementById('dpVersion').value;
+            
+            // Adjust color depth based on color format
+            let adjustedColorDepth;
+            switch (colorFormat) {
+                case 'RGB':
+                    adjustedColorDepth = colorDepth;
+                    break;
+                case 'YCbCr444':
+                    adjustedColorDepth = colorDepth; // 4:4:4 same as RGB
+                    break;
+                case 'YCbCr422':
+                    adjustedColorDepth = (colorDepth / 2) * 2 + (colorDepth / 2); // 4:2:2
+                    break;
+                case 'YCbCr420':
+                    adjustedColorDepth = (colorDepth / 2) * 2 + (colorDepth / 4); // 4:2:0
+                    break;
+                default:
+                    adjustedColorDepth = colorDepth;
+            }
+
+            // Calculate the bandwidth in bits per second
+            const bandwidthBps = width * height * refreshRate * adjustedColorDepth;
+            
+            // Convert bandwidth to Gbps (Gigabits per second)
+            const bandwidthGbps = bandwidthBps / 1e9;
+            
+            // Display the result
+            document.getElementById('result').innerText = `Required Bandwidth: ${bandwidthGbps.toFixed(2)} Gbps`;
+        }
+
+        // Update bandwidth table
+        function updateBandwidthTable() {
+            const dpBandwidthPerLane = {
+                'dp1.4': {
+                    'HBR': 1.296, // 80% efficiency
+                    'HBR2': 2.592, // 80% efficiency
+                    'HBR3': 6.48 // 80% efficiency
+                },
+                'dp2.1': {
+                    'UHBR10': 9.71, // 97.02% efficiency
+                    'UHBR20': 19.42 // 97.02% efficiency
+                }
+            };
+
+            const tableBody = document.getElementById('bandwidthTable');
+            tableBody.innerHTML = '';
+
+            const dpVersions = Object.keys(dpBandwidthPerLane);
+            const lanes = [1, 2, 4];
+
+            dpVersions.forEach(dpVersion => {
+                const transmissionRates = Object.keys(dpBandwidthPerLane[dpVersion]);
+                transmissionRates.forEach(rate => {
+                    lanes.forEach(lane => {
+                        const maxPayloadBandwidth = dpBandwidthPerLane[dpVersion][rate] * lane;
+                        const row = document.createElement('tr');
+                        row.innerHTML = `<td>${dpVersion}</td><td>${rate}</td><td>${lane}</td><td>${maxPayloadBandwidth.toFixed(2)}</td>`;
+                        tableBody.appendChild(row);
+                    });
+                });
+            });
+        }
+
+        // Update the table when the page loads
+        document.addEventListener('DOMContentLoaded', updateBandwidthTable);
+    </script>
+</body>
+</html>
