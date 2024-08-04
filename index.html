@@ -33,23 +33,25 @@
         th {
             background-color: #f2f2f2;
         }
+        .monitor-section {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-bottom: 20px;
+        }
     </style>
 </head>
 <body>
     <h1>Display Bandwidth Calculator</h1>
     <form id="bandwidthForm">
-        <label for="width">Resolution Width (pixels):</label>
-        <input type="number" id="width" name="width" required>
-        
-        <label for="height">Resolution Height (pixels):</label>
-        <input type="number" id="height" name="height" required>
-        
-        <label for="refreshRate">Refresh Rate (Hz):</label>
-        <input type="number" id="refreshRate" name="refreshRate" required>
-        
-        <label for="colorDepth">Color Depth (bits per pixel):</label>
-        <input type="number" id="colorDepth" name="colorDepth" required>
+        <label for="numMonitors">Number of Monitors:</label>
+        <select id="numMonitors" name="numMonitors" required onchange="updateMonitorSections()">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+        </select>
 
+        <div id="monitorSections"></div>
+        
         <label for="colorFormat">Color Format:</label>
         <select id="colorFormat" name="colorFormat" required>
             <option value="RGB">RGB</option>
@@ -64,7 +66,7 @@
             <option value="dp2.1">DP 2.1</option>
         </select>
         
-        <button type="button" onclick="calculateBandwidth()">Calculate Bandwidth</button>
+        <button type="button" onclick="calculateTotalBandwidth()">Calculate Total Bandwidth</button>
     </form>
     
     <div id="result"></div>
@@ -84,42 +86,105 @@
     </table>
     
     <script>
-        function calculateBandwidth() {
-            // Get input values
-            const width = document.getElementById('width').value;
-            const height = document.getElementById('height').value;
-            const refreshRate = document.getElementById('refreshRate').value;
-            const colorDepth = document.getElementById('colorDepth').value;
-            const colorFormat = document.getElementById('colorFormat').value;
-            const dpVersion = document.getElementById('dpVersion').value;
+        const commonResolutions = [
+            { width: 1920, height: 1080, refreshRate: 60, label: "1080p @ 60Hz" },
+            { width: 1920, height: 1080, refreshRate: 144, label: "1080p @ 144Hz" },
+            { width: 2560, height: 1440, refreshRate: 60, label: "1440p @ 60Hz" },
+            { width: 2560, height: 1440, refreshRate: 144, label: "1440p @ 144Hz" },
+            { width: 3840, height: 2160, refreshRate: 60, label: "4K @ 60Hz" },
+            { width: 3840, height: 2160, refreshRate: 144, label: "4K @ 144Hz" }
+        ];
+
+        function updateMonitorSections() {
+            const numMonitors = document.getElementById('numMonitors').value;
+            const monitorSections = document.getElementById('monitorSections');
+            monitorSections.innerHTML = '';
             
-            // Adjust color depth based on color format
-            let adjustedColorDepth;
-            switch (colorFormat) {
-                case 'RGB':
-                    adjustedColorDepth = colorDepth;
-                    break;
-                case 'YCbCr444':
-                    adjustedColorDepth = colorDepth; // 4:4:4 same as RGB
-                    break;
-                case 'YCbCr422':
-                    adjustedColorDepth = (colorDepth / 2) * 2 + (colorDepth / 2); // 4:2:2
-                    break;
-                case 'YCbCr420':
-                    adjustedColorDepth = (colorDepth / 2) * 2 + (colorDepth / 4); // 4:2:0
-                    break;
-                default:
-                    adjustedColorDepth = colorDepth;
+            for (let i = 1; i <= numMonitors; i++) {
+                const section = document.createElement('div');
+                section.classList.add('monitor-section');
+                section.innerHTML = `
+                    <h3>Monitor ${i}</h3>
+                    <label for="preset${i}">Preset:</label>
+                    <select id="preset${i}" name="preset${i}" onchange="applyPreset(${i})">
+                        <option value="">--Select Preset--</option>
+                        ${commonResolutions.map(res => `<option value="${res.width},${res.height},${res.refreshRate}">${res.label}</option>`).join('')}
+                    </select>
+
+                    <label for="width${i}">Resolution Width (pixels):</label>
+                    <input type="number" id="width${i}" name="width${i}" required>
+                    
+                    <label for="height${i}">Resolution Height (pixels):</label>
+                    <input type="number" id="height${i}" name="height${i}" required>
+                    
+                    <label for="refreshRate${i}">Refresh Rate (Hz):</label>
+                    <input type="number" id="refreshRate${i}" name="refreshRate${i}" required>
+                    
+                    <label for="colorDepth${i}">Color Depth (bits per pixel):</label>
+                    <input type="number" id="colorDepth${i}" name="colorDepth${i}" required value="24">
+                `;
+                monitorSections.appendChild(section);
+            }
+        }
+        
+        function applyPreset(monitorIndex) {
+            const presetSelect = document.getElementById(`preset${monitorIndex}`);
+            const [width, height, refreshRate] = presetSelect.value.split(',').map(Number);
+            
+            if (width && height && refreshRate) {
+                document.getElementById(`width${monitorIndex}`).value = width;
+                document.getElementById(`height${monitorIndex}`).value = height;
+                document.getElementById(`refreshRate${monitorIndex}`).value = refreshRate;
+            }
+        }
+
+        function calculateTotalBandwidth() {
+            const numMonitors = document.getElementById('numMonitors').value;
+            const colorFormat = document.getElementById('colorFormat').value;
+            let totalBandwidthGbps = 0;
+            let totalPixelClockMHz = 0;
+
+            for (let i = 1; i <= numMonitors; i++) {
+                // Get input values for each monitor
+                const width = document.getElementById(`width${i}`).value;
+                const height = document.getElementById(`height${i}`).value;
+                const refreshRate = document.getElementById(`refreshRate${i}`).value;
+                const colorDepth = document.getElementById(`colorDepth${i}`).value;
+
+                // Adjust color depth based on color format
+                let adjustedColorDepth;
+                switch (colorFormat) {
+                    case 'RGB':
+                        adjustedColorDepth = colorDepth;
+                        break;
+                    case 'YCbCr444':
+                        adjustedColorDepth = colorDepth; // 4:4:4 same as RGB
+                        break;
+                    case 'YCbCr422':
+                        adjustedColorDepth = colorDepth * 8 / 12; // 4:2:2
+                        break;
+                    case 'YCbCr420':
+                        adjustedColorDepth = colorDepth / 2; // 4:2:0
+                        break;
+                    default:
+                        adjustedColorDepth = colorDepth;
+                }
+
+                // Calculate the bandwidth for each monitor in bits per second
+                const bandwidthBps = width * height * refreshRate * adjustedColorDepth;
+                
+                // Convert bandwidth to Gbps (Gigabits per second)
+                const bandwidthGbps = bandwidthBps / 1e9;
+
+                const pixelClockMHz = (width * height * refreshRate) / 1e6;
+                
+                // Add to total bandwidth
+                totalBandwidthGbps += bandwidthGbps;
+                totalPixelClockMHz += pixelClockMHz;
             }
 
-            // Calculate the bandwidth in bits per second
-            const bandwidthBps = width * height * refreshRate * adjustedColorDepth;
-            
-            // Convert bandwidth to Gbps (Gigabits per second)
-            const bandwidthGbps = bandwidthBps / 1e9;
-            
-            // Display the result
-            document.getElementById('result').innerText = `Required Bandwidth: ${bandwidthGbps.toFixed(2)} Gbps`;
+            // Display the total result
+            document.getElementById('result').innerText = `Total Required Bandwidth: ${totalBandwidthGbps.toFixed(2)} Gbps (${totalPixelClockMHz.toFixed(2)} MHz) for ${numMonitors} monitor(s)`;
         }
 
         // Update bandwidth table
@@ -155,8 +220,11 @@
             });
         }
 
-        // Update the table when the page loads
-        document.addEventListener('DOMContentLoaded', updateBandwidthTable);
+        // Initialize monitor sections and update the table when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            updateMonitorSections();
+            updateBandwidthTable();
+        });
     </script>
 </body>
 </html>
